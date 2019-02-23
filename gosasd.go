@@ -10,9 +10,8 @@ type Synchronizer struct {
 	wg            sync.WaitGroup
 	asyncChannels []chan interface{}
 	closeCounter  int
-	outputChannel chan interface{}
-	receiverFunc  Receiver
-	receiverChan  chan interface{}
+	receivingFunc Receiver
+	receivingChan chan interface{}
 	logging       bool
 }
 
@@ -24,9 +23,8 @@ func NewSyncronizer(debug bool) *Synchronizer {
 		logging:       debug,
 		asyncChannels: nil,
 		closeCounter:  0,
-		outputChannel: make(chan interface{}),
-		receiverFunc:  nil,
-		receiverChan:  nil,
+		receivingFunc: nil,
+		receivingChan: nil,
 	}
 }
 
@@ -37,11 +35,11 @@ func (s *Synchronizer) Log(str ...string) {
 }
 
 func (s *Synchronizer) SetReceiverFunction(r Receiver) {
-	s.receiverFunc = r
+	s.receivingFunc = r
 }
 
 func (s *Synchronizer) SetReceiverChannel(rc chan interface{}) {
-	s.receiverChan = rc
+	s.receivingChan = rc
 }
 
 func (s *Synchronizer) AddAsyncChannel(c chan interface{}) {
@@ -62,20 +60,20 @@ func (s *Synchronizer) Sync() func() {
 					s.Log("Async channel number", strconv.Itoa(s.closeCounter), "got closed")
 
 					if s.closeCounter == len(s.asyncChannels) {
-						s.Log("All async channels are closed! Closing receiver channel!")
+						s.Log("All async channels are closed! Closing receiving channel!")
 
-						if s.receiverChan != nil {
-							close(s.receiverChan)
+						if s.receivingChan != nil {
+							close(s.receivingChan)
 						}
 					}
 
 					break
 				}
 
-				if s.receiverFunc != nil {
-					s.receiverFunc(data)
-				} else if s.receiverChan != nil {
-					s.receiverChan <- data
+				if s.receivingFunc != nil {
+					s.receivingFunc(data)
+				} else if s.receivingChan != nil {
+					s.receivingChan <- data
 				}
 			}
 		}(asyncChan)
