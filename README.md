@@ -68,7 +68,30 @@ func main() {
 	}
 
 }
-```   
+``` 
+Output:
+```bash
+b
+a
+b
+a
+b
+a
+b
+a
+a
+b
+a
+2019/02/23 12:26:44 [Async channel number 1 got closed]
+a
+a
+a
+a
+2019/02/23 12:26:49 [Async channel number 2 got closed]
+2019/02/23 12:26:49 [All async channels are closed! Closing receiving channel!]
+
+Process finished with exit code 0
+```  
 # (UN)LICENSE
 This is free and unencumbered software released into the public domain.
 
