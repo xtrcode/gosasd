@@ -1,30 +1,39 @@
+// The contents of this file is free and unencumbered software released into the
+// public domain. For more information, please refer to <http://unlicense.org/>
+
 package gosasd
 
 import (
 	"log"
-	"strconv"
 	"sync"
 )
 
+type GenericChan chan interface{}
+
 type Synchronizer struct {
-	wg            sync.WaitGroup
-	asyncChannels []chan interface{}
-	closeCounter  int
-	receivingFunc Receiver
-	receivingChan chan interface{}
-	logging       bool
+	wg             sync.WaitGroup
+	signal         chan bool
+	asyncChannels  map[interface{}][]Chan
+	groupPipelines map[interface{}]PipelineChan
+	closeCounter   int
+	globalPipeline PipelineChan
+	logging        bool
 }
 
-type Receiver func(i interface{}) bool
+type Chan struct {
+	C          GenericChan
+	Identifier interface{}
+}
 
-func NewSyncronizer(debug bool) *Synchronizer {
+func NewSyncronizer(signal chan bool, debug bool) *Synchronizer {
 	return &Synchronizer{
-		wg:            sync.WaitGroup{},
-		logging:       debug,
-		asyncChannels: nil,
-		closeCounter:  0,
-		receivingFunc: nil,
-		receivingChan: nil,
+		wg:             sync.WaitGroup{},
+		logging:        debug,
+		signal:         signal,
+		asyncChannels:  make(map[interface{}][]Chan),
+		groupPipelines: make(map[interface{}]PipelineChan),
+		closeCounter:   0,
+		globalPipeline: nil,
 	}
 }
 
@@ -34,52 +43,37 @@ func (s *Synchronizer) Log(str ...string) {
 	}
 }
 
-func (s *Synchronizer) SetReceiverFunction(r Receiver) {
-	s.receivingFunc = r
+func (s *Synchronizer) SetGlobalPipeline(pc PipelineChan) {
+	s.globalPipeline = pc
 }
 
-func (s *Synchronizer) SetReceiverChannel(rc chan interface{}) {
-	s.receivingChan = rc
+func (s *Synchronizer) SetGroupPipeline(group interface{}, pc PipelineChan) {
+	s.groupPipelines[group] = pc
 }
 
-func (s *Synchronizer) AddAsyncChannel(c chan interface{}) {
-	s.asyncChannels = append(s.asyncChannels, c)
+// AddAsyncChannel
+// group (Optional) will be set to "global_internal" if nil
+func (s *Synchronizer) AddAsyncChannel(group, identifier interface{}, rc GenericChan) {
+	if group == nil {
+		group = "global_internal"
+		s.SetGroupPipeline(group, s.globalPipeline)
+	}
+
+	s.asyncChannels[group] = append(s.asyncChannels[group], Chan{rc, identifier})
 }
 
 func (s *Synchronizer) Sync() func() {
-	for _, asyncChan := range s.asyncChannels {
-		s.wg.Add(1)
-		go func(c chan interface{}) {
-			defer s.wg.Done()
-
-			for {
-				data, isOpen := <-c
-				if !isOpen {
-					s.closeCounter++
-
-					s.Log("Async channel number", strconv.Itoa(s.closeCounter), "got closed")
-
-					if s.closeCounter == len(s.asyncChannels) {
-						s.Log("All async channels are closed! Closing receiving channel!")
-
-						if s.receivingChan != nil {
-							close(s.receivingChan)
-						}
-					}
-
-					break
-				}
-
-				if s.receivingFunc != nil {
-					s.receivingFunc(data)
-				} else if s.receivingChan != nil {
-					s.receivingChan <- data
-				}
-			}
-		}(asyncChan)
+	// Loop over each group and its synced
+	// pipeline
+	for group, pipeline := range s.groupPipelines {
+		for _, asyncChan := range s.asyncChannels[group] {
+			go s.processPipeline(asyncChan, pipeline)
+		}
 	}
 
 	return func() {
 		s.wg.Wait()
+		s.Log("Sending signal to finish operation")
+		s.signal <- true
 	}
 }
