@@ -10,13 +10,14 @@ improvements.
 *The whole process of distributing incoming asynchronous streams into one straight kind-of synchronized stream is 
 called Pipeline*
 
-# Features
+# Features v2.1.0
+- Supports generic streams (channels)
 - Global streams (no group assigned)
 - Grouped streams
 - Receive payloads per group (group pipeline)
 - Identify payload origin
 - Receive payloads of all groups (global pipeline)
-- Signal channel
+- Global signal channel
 
 # Install
 ```bash
@@ -32,14 +33,21 @@ package main
 
 import (
 	"fmt"
+	"github.com/eapache/channels"
 	"gosasd"
 )
 
+type MyStruct struct {
+	Value int
+}
+
 func main() {
-	async1 := make(chan interface{})
-	async2 := make(chan interface{})
-	async3 := make(chan interface{})
-	async4 := make(chan interface{})
+	concreteChannel := make(chan *MyStruct)
+	async1 := channels.Wrap(concreteChannel)
+
+	async2 := channels.NewInfiniteChannel()
+	async3 := channels.NewInfiniteChannel()
+	async4 := channels.NewInfiniteChannel()
 
 	signal := make(chan bool)
 	globalPipeline := make(chan gosasd.PipelinePayload)
@@ -70,30 +78,34 @@ func main() {
 	{
 		go func() {
 			for i := 0; i < 5; i++ {
-				async1 <- i
+				concreteChannel <- &MyStruct{i}
 			}
-			close(async1)
+
+			close(concreteChannel)
 		}()
 
 		go func() {
 			for i := 10; i < 15; i++ {
-				async2 <- i
+				async2.In() <- i
 			}
-			close(async2)
+
+			async2.Close()
 		}()
 
 		go func() {
 			for i := 20; i < 25; i++ {
-				async3 <- i
+				async3.In() <- i
 			}
-			close(async3)
+
+			async3.Close()
 		}()
 
 		go func() {
 			for i := 30; i < 35; i++ {
-				async4 <- i
+				async4.In() <- i
 			}
-			close(async4)
+
+			async4.Close()
 		}()
 
 	}
@@ -121,52 +133,55 @@ Output:
 ```bash
 Global: chan4 30
 Group 2: chan4 30
-Global: chan3 20
-2019/03/02 13:45:21 [Async channel chan3 got closed]
-2019/03/02 13:45:21 [Leaving routine for  chan3]
-2019/03/02 13:45:21 [Async channel chan1 got closed]
-Group 1: chan3 20
-Global: chan3 21
-Group 1: chan3 21
-2019/03/02 13:45:21 [Leaving routine for  chan1]
 Global: chan2 10
-2019/03/02 13:45:21 [Async channel chan2 got closed]
-Global: chan4 31
-2019/03/02 13:45:21 [Leaving routine for  chan2]
-Global: chan3 22
-Global: chan1 0
-2019/03/02 13:45:21 [Async channel chan4 got closed]
 Group 1: chan2 10
-2019/03/02 13:45:21 [Leaving routine for  chan4]
 Global: chan2 11
-2019/03/02 13:45:21 [Sending signal to finish operation]
 Group 1: chan2 11
+Global: chan3 20
+Group 1: chan3 20
+2019/03/03 14:52:32 [Async channel chan4 got closed]
+2019/03/03 14:52:32 [Leaving routine for  chan4]
+2019/03/03 14:52:32 [Async channel chan2 got closed]
+2019/03/03 14:52:32 [Async channel chan3 got closed]
+Global: chan3 21
+2019/03/03 14:52:32 [Leaving routine for  chan3]
+Group 1: chan3 21
+2019/03/03 14:52:32 [Leaving routine for  chan2]
+Global: chan4 31
+2019/03/03 14:52:32 [Async channel chan1 got closed]
 Group 2: chan4 31
+2019/03/03 14:52:32 [Leaving routine for  chan1]
 Global: chan4 32
-Global: chan1 1
-Global: chan2 12
-Group 1: chan3 22
-Global: chan3 23
-Group 1: chan3 23
 Group 2: chan4 32
+2019/03/03 14:52:32 [Sending signal to finish operation]
+Global: chan1 &{0}
+Global: chan1 &{1}
+Global: chan2 12
+Global: chan3 22
 Global: chan4 33
-Group 1: chan2 12
-Global: chan1 2
-Global: chan3 24
-Group 1: chan3 24
 Group 2: chan4 33
-Global: chan2 13
-Global: chan1 3
-Global: chan1 4
+Group 1: chan2 12
 Global: chan4 34
+Group 1: chan3 22
+Global: chan1 &{2}
+Global: chan1 &{3}
+Global: chan2 13
 Group 1: chan2 13
+Group 2: chan4 34
+Global: chan1 &{4}
+Global: chan3 23
 Global: chan2 14
 Group 1: chan2 14
-Group 2: chan4 34
+Group 1: chan3 23
+Global: chan3 24
+Group 1: chan3 24
 Signal to close operation
 
 Process finished with exit code 0
 ```  
+# Credits
+- [@eapache](https://github.com/eapache/) for the [Channels](https://github.com/eapache/Channels) package
+
 # (UN)LICENSE
 This is free and unencumbered software released into the public domain.
 

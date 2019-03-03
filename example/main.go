@@ -5,14 +5,21 @@ package main
 
 import (
 	"fmt"
+	"github.com/eapache/channels"
 	"gosasd"
 )
 
+type MyStruct struct {
+	Value int
+}
+
 func main() {
-	async1 := make(chan interface{})
-	async2 := make(chan interface{})
-	async3 := make(chan interface{})
-	async4 := make(chan interface{})
+	concreteChannel := make(chan *MyStruct)
+	async1 := channels.Wrap(concreteChannel)
+
+	async2 := channels.NewInfiniteChannel()
+	async3 := channels.NewInfiniteChannel()
+	async4 := channels.NewInfiniteChannel()
 
 	signal := make(chan bool)
 	globalPipeline := make(chan gosasd.PipelinePayload)
@@ -43,30 +50,34 @@ func main() {
 	{
 		go func() {
 			for i := 0; i < 5; i++ {
-				async1 <- i
+				concreteChannel <- &MyStruct{i}
 			}
-			close(async1)
+
+			close(concreteChannel)
 		}()
 
 		go func() {
 			for i := 10; i < 15; i++ {
-				async2 <- i
+				async2.In() <- i
 			}
-			close(async2)
+
+			async2.Close()
 		}()
 
 		go func() {
 			for i := 20; i < 25; i++ {
-				async3 <- i
+				async3.In() <- i
 			}
-			close(async3)
+
+			async3.Close()
 		}()
 
 		go func() {
 			for i := 30; i < 35; i++ {
-				async4 <- i
+				async4.In() <- i
 			}
-			close(async4)
+
+			async4.Close()
 		}()
 
 	}

@@ -30,12 +30,12 @@ func (pp *PipelinePayload) Is(_id interface{}) bool {
 	return reflect.DeepEqual(pp.Identifier, _id)
 }
 
-func (s *Synchronizer) processPipeline(c Chan, group PipelineChan) {
+func (s *Synchronizer) processPipeline(c ChannelContainer, group PipelineChan) {
 	s.wg.Add(1)
 	defer s.wg.Done()
 
 	for {
-		data, isOpen := <-c.C
+		data, isOpen := <-c.C.Out()
 		if !isOpen {
 			s.Log("Async channel", fmt.Sprintf("%v", c.Identifier), "got closed")
 			break
@@ -54,6 +54,4 @@ func (s *Synchronizer) processPipeline(c Chan, group PipelineChan) {
 			group <- payload
 		}
 	}
-
-	s.Log("Leaving routine for ", fmt.Sprintf("%v", c.Identifier))
 }

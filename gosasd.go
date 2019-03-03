@@ -4,24 +4,23 @@
 package gosasd
 
 import (
+	"github.com/eapache/channels"
 	"log"
 	"sync"
 )
 
-type GenericChan chan interface{}
-
 type Synchronizer struct {
 	wg             sync.WaitGroup
 	signal         chan bool
-	asyncChannels  map[interface{}][]Chan
+	asyncChannels  map[interface{}][]ChannelContainer
 	groupPipelines map[interface{}]PipelineChan
 	closeCounter   int
 	globalPipeline PipelineChan
 	logging        bool
 }
 
-type Chan struct {
-	C          GenericChan
+type ChannelContainer struct {
+	C          channels.SimpleOutChannel
 	Identifier interface{}
 }
 
@@ -30,7 +29,7 @@ func NewSyncronizer(signal chan bool, debug bool) *Synchronizer {
 		wg:             sync.WaitGroup{},
 		logging:        debug,
 		signal:         signal,
-		asyncChannels:  make(map[interface{}][]Chan),
+		asyncChannels:  make(map[interface{}][]ChannelContainer),
 		groupPipelines: make(map[interface{}]PipelineChan),
 		closeCounter:   0,
 		globalPipeline: nil,
@@ -53,13 +52,13 @@ func (s *Synchronizer) SetGroupPipeline(group interface{}, pc PipelineChan) {
 
 // AddAsyncChannel
 // group (Optional) will be set to "global_internal" if nil
-func (s *Synchronizer) AddAsyncChannel(group, identifier interface{}, rc GenericChan) {
+func (s *Synchronizer) AddAsyncChannel(group, identifier interface{}, c channels.SimpleOutChannel) {
 	if group == nil {
 		group = "global_internal"
 		s.SetGroupPipeline(group, s.globalPipeline)
 	}
 
-	s.asyncChannels[group] = append(s.asyncChannels[group], Chan{rc, identifier})
+	s.asyncChannels[group] = append(s.asyncChannels[group], ChannelContainer{c, identifier})
 }
 
 func (s *Synchronizer) Sync() func() {
